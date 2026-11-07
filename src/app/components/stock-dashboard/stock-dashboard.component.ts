@@ -1,6 +1,11 @@
 import { Component, OnInit } from '@angular/core';
 import { StockService, Stock, MarketIndex } from '../../services/stock.service';
 
+export interface SectorGroup {
+  sector: string;
+  stocks: Stock[];
+}
+
 @Component({
   selector: 'app-stock-dashboard',
   templateUrl: './stock-dashboard.component.html',
@@ -8,11 +13,11 @@ import { StockService, Stock, MarketIndex } from '../../services/stock.service';
 })
 export class StockDashboardComponent implements OnInit {
   stocks: Stock[] = [];
-  filteredStocks: Stock[] = [];
+  groupedStocks: SectorGroup[] = [];
   indices: MarketIndex[] = [];
 
   selectedSector: string = 'All';
-  sectors: string[] = ['All', 'Information Technology', 'Communication Services', 'Consumer Discretionary', 'Financials', 'Health Care', 'Energy'];
+  sectors: string[] = ['All']; // נבנה באופן דינמי מהמניות
 
   newSymbol: string = '';
   showAddModal: boolean = false;
@@ -22,7 +27,8 @@ export class StockDashboardComponent implements OnInit {
   ngOnInit() {
     this.stockService.getStocks().subscribe(data => {
       this.stocks = data;
-      this.filterBySector(this.selectedSector);
+      this.updateAvailableSectors();
+      this.groupStocksBySector();
     });
 
     this.stockService.getIndices().subscribe(data => {
@@ -30,13 +36,39 @@ export class StockDashboardComponent implements OnInit {
     });
   }
 
+  // עדכון דינמי של רשימת הסקטורים שמופיעים ב-Dropdown בהתבסס על המניות הקיימות
+  private updateAvailableSectors() {
+    const uniqueSectors = Array.from(new Set(this.stocks.map(s => s.sector)));
+    this.sectors = ['All', ...uniqueSectors];
+    
+    // אם הסקטור שנבחר כבר לא קיים ברשימה (למשל מניה נמחקה), תחזור ל-'All'
+    if (!this.sectors.includes(this.selectedSector)) {
+      this.selectedSector = 'All';
+    }
+  }
+
   filterBySector(sector: string) {
     this.selectedSector = sector;
-    if (sector === 'All') {
-      this.filteredStocks = this.stocks;
-    } else {
-      this.filteredStocks = this.stocks.filter(s => s.sector === sector);
+    this.groupStocksBySector();
+  }
+
+  private groupStocksBySector() {
+    let filtered = this.stocks;
+    if (this.selectedSector !== 'All') {
+      filtered = this.stocks.filter(s => s.sector === this.selectedSector);
     }
+
+    const groupsMap = new Map<string, Stock[]>();
+    filtered.forEach(stock => {
+      const current = groupsMap.get(stock.sector) || [];
+      current.push(stock);
+      groupsMap.set(stock.sector, current);
+    });
+
+    this.groupedStocks = Array.from(groupsMap.entries()).map(([sector, stocks]) => ({
+      sector,
+      stocks
+    }));
   }
 
   onAddStock() {
@@ -46,7 +78,6 @@ export class StockDashboardComponent implements OnInit {
     }
 
     this.stockService.addStock(this.newSymbol);
-
     this.newSymbol = '';
     this.showAddModal = false;
   }

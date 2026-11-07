@@ -1,6 +1,6 @@
 <div class="dashboard-container">
   
-  <!-- סרגל מדדים עליון (כולל VOO ודולר/שקל מעודכן) -->
+  <!-- סרגל מדדים עליון -->
   <div class="indices-bar" *ngIf="indices.length > 0">
     <div class="index-card" *ngFor="let idx of indices">
       <span class="index-name">{{ idx.symbol }}</span>
@@ -23,7 +23,7 @@
     </button>
   </header>
 
-  <!-- טופס הוספה מקוצר - רק סימבול והמערכת עושה את השאר -->
+  <!-- טופס הוספה -->
   <div class="add-stock-form" *ngIf="showAddModal">
     <h3>הוספת מניה חדשה</h3>
     <div class="form-row">
@@ -41,21 +41,25 @@
     </select>
   </div>
 
-  <!-- גריד המניות -->
-  <div class="grid-container">
-    <div class="stock-card" *ngFor="let stock of filteredStocks" [class.positive]="stock.change >= 0" [class.negative]="stock.change < 0">
-      <button class="btn-delete" (click)="onRemoveStock(stock.symbol, $event)">✕</button>
-      <div class="card-header">
-        <span class="symbol">{{ stock.symbol }}</span>
-        <span class="sector-badge">{{ stock.sector }}</span>
-      </div>
-      <div class="name">{{ stock.name }}</div>
-      <div class="price-row">
-        <span class="price">${{ stock.price.toFixed(2) }}</span>
-        <span class="change">
-          {{ stock.change >= 0 ? '+' : '' }}{{ stock.change.toFixed(2) }} ({{ stock.changePercent.toFixed(2) }}%)
-        </span>
+  <!-- תצוגה מקובצת לפי סקטורים עם תת-כותרת לכל סקטור -->
+  <div class="sector-group" *ngFor="let group of groupedStocks">
+    <h2 class="sector-title">📂 {{ group.sector }}</h2>
+    <div class="grid-container">
+      <div class="stock-card" *ngFor="let stock of group.stocks" [class.positive]="stock.change >= 0" [class.negative]="stock.change < 0">
+        <button class="btn-delete" (click)="onRemoveStock(stock.symbol, $event)">✕</button>
+        <div class="card-header">
+          <span class="symbol">{{ stock.symbol }}</span>
+          <span class="sector-badge">{{ stock.sector }}</span>
+        </div>
+        <div class="name">{{ stock.name }}</div>
+        <div class="price-row">
+          <span class="price">${{ stock.price.toFixed(2) }}</span>
+          <span class="change">
+            {{ stock.change >= 0 ? '+' : '' }}{{ stock.change.toFixed(2) }} ({{ stock.changePercent.toFixed(2) }}%)
+          </span>
+        </div>
       </div>
     </div>
   </div>
+
 </div>

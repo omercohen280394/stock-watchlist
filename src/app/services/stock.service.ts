@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { BehaviorSubject, Observable, forkJoin, of } from 'rxjs';
-import { catchError, map } from 'rxjs/operators';
+import { catchError, map, switchMap } from 'rxjs/operators';
 
 export interface Stock {
   symbol: string;
@@ -24,15 +24,14 @@ export interface MarketIndex {
   providedIn: 'root'
 })
 export class StockService {
-  // מפתח API חינמי (למשל מ-Finnhub.io)
   private apiKey = 'dbnnll9r01qpqmfmds1gdbnnll9r01qpqmfmds20';
+
   private baseUrl = 'https://finnhub.io/api/v1';
 
   private stocksSubject = new BehaviorSubject<Stock[]>([]);
   private indicesSubject = new BehaviorSubject<MarketIndex[]>([]);
 
-  // רשימת מניות ברירת מחדל לטעינה ראשונית
-  private defaultSymbols = ['AAPL', 'NVDA', 'MSFT', 'AMZN', 'GOOGL', 'META', 'TSLA'];
+  private defaultSymbols = ['AAPL', 'NVDA', 'MSFT', 'AMZN', 'JNJ', 'JPM'];
 
   constructor(private http: HttpClient) {
     this.refreshAllData();
@@ -46,34 +45,44 @@ export class StockService {
     return this.indicesSubject.asObservable();
   }
 
-  // טעינה חי של כל הנתונים בלייב
   refreshAllData() {
     this.fetchIndicesLive().subscribe(indices => this.indicesSubject.next(indices));
-    
+
     const savedSymbols = this.loadSavedSymbols();
     const symbolsToFetch = savedSymbols.length > 0 ? savedSymbols : this.defaultSymbols;
-    
+
     this.fetchStocksLive(symbolsToFetch).subscribe(stocks => this.stocksSubject.next(stocks));
   }
 
-  // שליפת מחיר מניה בודדת בלייב מ-Finnhub
+  // שליפת מחיר ונתוני מסחר
   private fetchQuote(symbol: string): Observable<{ price: number; change: number; changePercent: number }> {
     return this.http.get<any>(`${this.baseUrl}/quote?symbol=${symbol}&token=${this.apiKey}`).pipe(
       map(res => ({
-        price: res.c || 0,           // Current price
-        change: res.d || 0,          // Change
-        changePercent: res.dp || 0   // Change percent
+        price: res.c || 0,
+        change: res.d || 0,
+        changePercent: res.dp || 0
       })),
       catchError(() => of({ price: 0, change: 0, changePercent: 0 }))
     );
   }
 
-  // שליפת מדדים חיים
+  // שליפת פרופיל חברה דינמי (שם מלא וסקטור אמיתי מהבורסה!)
+  private fetchCompanyProfile(symbol: string): Observable<{ name: string; sector: string }> {
+    return this.http.get<any>(`${this.baseUrl}/stock/profile2?symbol=${symbol}&token=${this.apiKey}`).pipe(
+      map(res => ({
+        name: res.name || `${symbol} Corp.`,
+        // Finnhub מחזיר לרוב finnhubIndustry או sector
+        sector: res.finnhubIndustry || res.sector || 'General'
+      })),
+      catchError(() => of({ name: `${symbol} Corp.`, sector: 'General' }))
+    );
+  }
+
   private fetchIndicesLive(): Observable<MarketIndex[]> {
     return forkJoin({
       voo: this.fetchQuote('VOO'),
       mags: this.fetchQuote('MAGS'),
-      rut: this.fetchQuote('IWM'), // IWM ETF לעקיבה אחרי Russell 2000
+      rut: this.fetchQuote('IWM'),
       usdIls: this.fetchQuote('USD/ILS')
     }).pipe(
       map(data => [
@@ -85,17 +94,19 @@ export class StockService {
     );
   }
 
-  // שליפת מניות מרובות
   private fetchStocksLive(symbols: string[]): Observable<Stock[]> {
-    const requests = symbols.map(sym => 
-      this.fetchQuote(sym).pipe(
-        map(q => ({
+    const requests = symbols.map(sym =>
+      forkJoin({
+        quote: this.fetchQuote(sym),
+        profile: this.fetchCompanyProfile(sym)
+      }).pipe(
+        map(({ quote, profile }) => ({
           symbol: sym,
-          name: `${sym} Inc.`,
-          sector: 'Market',
-          price: q.price,
-          change: q.change,
-          changePercent: q.changePercent
+          name: profile.name,
+          sector: profile.sector, // <-- סקטור דינמי אמיתי שמגיע ישירות מהשרת!
+          price: quote.price,
+          change: quote.change,
+          changePercent: quote.changePercent
         }))
       )
     );
@@ -112,14 +123,17 @@ export class StockService {
       return;
     }
 
-    this.fetchQuote(cleanSymbol).subscribe(q => {
+    forkJoin({
+      quote: this.fetchQuote(cleanSymbol),
+      profile: this.fetchCompanyProfile(cleanSymbol)
+    }).subscribe(({ quote, profile }) => {
       const newStock: Stock = {
         symbol: cleanSymbol,
-        name: `${cleanSymbol} Corp.`,
-        sector: 'Technology',
-        price: q.price,
-        change: q.change,
-        changePercent: q.changePercent
+        name: profile.name,
+        sector: profile.sector,
+        price: quote.price,
+        change: quote.change,
+        changePercent: quote.changePercent
       };
 
       const updated = [newStock, ...currentStocks];
