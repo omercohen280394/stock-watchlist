@@ -1,0 +1,29 @@
+<div class="dashboard-container">
+    <header class="header">
+      <h1>S&P 500 Top 22 Watchlist</h1>
+      <p>מעקב סקטוריאלי יומי</p>
+    </header>
+  
+    <div class="filter-bar">
+        <label for="sectorFilter">סינון לפי סקטור:</label>
+        <select id="sectorFilter" (change)="selectedSector = $any($event.target).value">
+          <option *ngFor="let sector of sectors" [value]="sector" [selected]="sector === selectedSector">{{ sector }}</option>
+        </select>
+      </div>
+  
+    <div class="grid-container">
+      <div class="stock-card" *ngFor="let stock of filteredStocks" [class.positive]="stock.change >= 0" [class.negative]="stock.change < 0">
+        <div class="card-header">
+          <span class="symbol">{{ stock.symbol }}</span>
+          <span class="sector-badge">{{ stock.sector }}</span>
+        </div>
+        <div class="name">{{ stock.name }}</div>
+        <div class="price-row">
+          <span class="price">${{ stock.price.toFixed(2) }}</span>
+          <span class="change">
+            {{ stock.change >= 0 ? '+' : '' }}{{ stock.change.toFixed(2) }} ({{ stock.changePercent.toFixed(2) }}%)
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
