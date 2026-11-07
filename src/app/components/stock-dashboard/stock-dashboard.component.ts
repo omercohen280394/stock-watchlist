@@ -1,5 +1,5 @@
 import { Component, OnInit } from '@angular/core';
-import { Stock, StockService } from '../../services/stock.service';
+import { StockService, Stock, MarketIndex } from '../../services/stock.service';
 
 @Component({
   selector: 'app-stock-dashboard',
@@ -8,25 +8,53 @@ import { Stock, StockService } from '../../services/stock.service';
 })
 export class StockDashboardComponent implements OnInit {
   stocks: Stock[] = [];
+  filteredStocks: Stock[] = [];
+  indices: MarketIndex[] = [];
+
   selectedSector: string = 'All';
-  sectors: string[] = ['All'];
+  sectors: string[] = ['All', 'Information Technology', 'Communication Services', 'Consumer Discretionary', 'Financials', 'Health Care', 'Energy'];
+
+  newSymbol: string = '';
+  showAddModal: boolean = false;
 
   constructor(private stockService: StockService) {}
 
-  ngOnInit(): void {
+  ngOnInit() {
     this.stockService.getStocks().subscribe(data => {
       this.stocks = data;
-      const uniqueSectors = Array.from(new Set(data.map(s => s.sector)));
-      if (this.sectors.length === 1) {
-        this.sectors = ['All', ...uniqueSectors];
-      }
+      this.filterBySector(this.selectedSector);
+    });
+
+    this.stockService.getIndices().subscribe(data => {
+      this.indices = data;
     });
   }
 
-  get filteredStocks(): Stock[] {
-    if (this.selectedSector === 'All') {
-      return this.stocks;
+  filterBySector(sector: string) {
+    this.selectedSector = sector;
+    if (sector === 'All') {
+      this.filteredStocks = this.stocks;
+    } else {
+      this.filteredStocks = this.stocks.filter(s => s.sector === sector);
     }
-    return this.stocks.filter(s => s.sector === this.selectedSector);
+  }
+
+  onAddStock() {
+    if (!this.newSymbol) {
+      alert('נא להזין סימבול מניה');
+      return;
+    }
+
+    this.stockService.addStock(this.newSymbol);
+
+    this.newSymbol = '';
+    this.showAddModal = false;
+  }
+
+  onRemoveStock(symbol: string, event: Event) {
+    event.stopPropagation();
+    if (confirm(`להסיר את ${symbol} מהרשימה?`)) {
+      this.stockService.removeStock(symbol);
+    }
   }
 }
