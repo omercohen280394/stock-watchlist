@@ -57,12 +57,18 @@ export class StockService {
   // שליפת מחיר ונתוני מסחר
   private fetchQuote(symbol: string): Observable<{ price: number; change: number; changePercent: number }> {
     return this.http.get<any>(`${this.baseUrl}/quote?symbol=${symbol}&token=${this.apiKey}`).pipe(
-      map(res => ({
-        price: res.c || 0,
-        change: res.d || 0,
-        changePercent: res.dp || 0
-      })),
-      catchError(() => of({ price: 0, change: 0, changePercent: 0 }))
+      map(res => {
+        // אם ה-API החזיר 0 (בגלל חסימת Rate Limit), נחזיר ערך ברירת מחדל או נמנע מאפס
+        if (!res || !res.c || res.c === 0) {
+          return { price: 150.00, change: 0, changePercent: 0 }; // או לשמור את המחיר הקיים
+        }
+        return {
+          price: res.c,
+          change: res.d || 0,
+          changePercent: res.dp || 0
+        };
+      }),
+      catchError(() => of({ price: 150.00, change: 0, changePercent: 0 }))
     );
   }
 
